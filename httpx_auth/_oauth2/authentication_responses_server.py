@@ -1,8 +1,9 @@
 import webbrowser
 import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
+from multiprocessing import Process
 from socket import socket
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 
@@ -182,6 +183,12 @@ def request_new_grant(grant_details: GrantDetails) -> tuple[str, str]:
         return _wait_for_grant(server)
 
 
+def open_browser(url: str) -> Process:
+    p = Process(target=webbrowser.open, args=[url], kwargs={"new": 1})
+    p.start()
+    return p
+
+
 def _open_url(url: str) -> None:
     # Default to Microsoft Internet Explorer to be able to open a new window
     # otherwise this parameter is not taken into account by most browsers
@@ -192,13 +199,23 @@ def _open_url(url: str) -> None:
             if hasattr(webbrowser, "iexplore")
             else webbrowser.get()
         )
+        print(type(browser))
+        print(dir(browser))
+        print(browser)
         logger.debug(f"Opening browser on {url}")
-        if not browser.open(url, new=1):
-            logger.warning("Unable to open URL, try with a GET request.")
-            httpx.get(url)
+        open_browser(url)
+        # if not browser.open(url, new=1):
+        #     logger.warning("Unable to open URL, try with a GET request.")
+        #     httpx.get(url)
     except webbrowser.Error:
         logger.exception("Unable to open URL, try with a GET request.")
-        httpx.get(url)
+        try:
+            httpx.get(url)
+        except httpx.ConnectError:
+            logger.exception("Unable to open URL in a browser or with a GET request")
+            print(
+                f"Open the following URL in a browser and follow the provided directions:\n\n{url}"
+            )
 
 
 def _wait_for_grant(server: FixedHttpServer) -> (str, str):
